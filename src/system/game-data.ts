@@ -28,8 +28,8 @@ import { allMoves } from "../data/move";
 import { TrainerVariant } from "../field/trainer";
 import { OutdatedPhase, ReloadSessionPhase } from "#app/phases";
 import { Variant, variantData } from "#app/data/variant";
-import {setSettingGamepad, SettingGamepad, settingGamepadDefaults} from "./settings/settings-gamepad";
-import {setSettingKeyboard, SettingKeyboard} from "#app/system/settings/settings-keyboard";
+import { setSettingGamepad, SettingGamepad, settingGamepadDefaults } from "./settings/settings-gamepad";
+import { setSettingKeyboard, SettingKeyboard } from "#app/system/settings/settings-keyboard";
 import { TerrainChangedEvent, WeatherChangedEvent } from "#app/events/arena.js";
 import { EnemyAttackStatusEffectChanceModifier } from "../modifier/modifier";
 import { StatusEffect } from "#app/data/status-effect.js";
@@ -136,7 +136,7 @@ interface VoucherUnlocks {
 }
 
 export interface VoucherCounts {
-	[type: string]: integer;
+  [type: string]: integer;
 }
 
 export interface DexData {
@@ -177,7 +177,7 @@ export const AbilityAttr = {
   ABILITY_HIDDEN: 4
 };
 
-export type StarterMoveset = [ Moves ] | [ Moves, Moves ] | [ Moves, Moves, Moves ] | [ Moves, Moves, Moves, Moves ];
+export type StarterMoveset = [Moves] | [Moves, Moves] | [Moves, Moves, Moves] | [Moves, Moves, Moves, Moves];
 
 export interface StarterFormMoveData {
   [key: integer]: StarterMoveset
@@ -214,7 +214,7 @@ const systemShortKeys = {
   seenAttr: "$sa",
   caughtAttr: "$ca",
   natureAttr: "$na",
-  seenCount: "$s" ,
+  seenCount: "$s",
   caughtCount: "$c",
   hatchedCount: "$hc",
   ivs: "$i",
@@ -311,7 +311,8 @@ export class GameData {
       const systemData = JSON.stringify(data, (k: any, v: any) => typeof v === "bigint" ? v <= maxIntAttrValue ? Number(v) : v.toString() : v);
 
       localStorage.setItem(`data_${loggedInUser.username}`, encrypt(systemData, bypassLogin));
-
+      const dataJson = {};
+      dataJson[`data_${loggedInUser.username}`] = encrypt(systemData, bypassLogin);
       if (!bypassLogin) {
         Utils.apiPost(`savedata/update?datatype=${GameDataType.SYSTEM}&clientSessionId=${clientSessionId}`, systemData, undefined, true)
           .then(response => response.text())
@@ -331,16 +332,58 @@ export class GameData {
             resolve(true);
           });
       } else {
+        this.saveToFs(JSON.stringify(dataJson));
         this.scene.ui.savingIcon.hide();
-
         resolve(true);
       }
+    });
+  }
+
+  public loadFromFs(): Promise<boolean> {
+    return new Promise<boolean>(resolve => {
+      fetch("api/read").then(async response => {
+        if (!response.ok) {
+          console.error("Failure to load ");
+          return resolve(false);
+        }
+        const file = await response.blob();
+        if (!file) {
+          console.error("Failure to fetch, no file?");
+        }
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const data = JSON.parse(event.target.result as string);
+          const key = Object.keys(data)[0];
+          localStorage.setItem(key, data[key]);
+        };
+        reader.readAsText(file);
+        return resolve(true);
+      });
+    });
+  }
+
+  public saveToFs(data: string): Promise<boolean> {
+    return new Promise<boolean>(resolve => {
+      const file = new Blob([data], { type: "text/plain" });
+      const formData = new FormData();
+      formData.append("file", file, "localsafegame.txt");
+      fetch("api/save", { method: "POST", body: formData }).then(response => {
+        if (!response.ok) {
+          console.error("Failure to save ");
+          return resolve(false);
+        }
+        return resolve(true);
+      });
     });
   }
 
   public loadSystem(): Promise<boolean> {
     return new Promise<boolean>(resolve => {
       console.log("Client Session:", clientSessionId);
+
+      if (bypassLogin) {
+        // this.loadFromFs();
+      }
 
       if (bypassLogin && !localStorage.getItem(`data_${loggedInUser.username}`)) {
         return resolve(false);
@@ -387,8 +430,6 @@ export class GameData {
           }
         }
 
-        console.debug(systemData);
-
         localStorage.setItem(`data_${loggedInUser.username}`, encrypt(systemDataStr, bypassLogin));
 
         /*const versions = [ this.scene.game.config.gameVersion, data.gameVersion || '0.0.0' ];
@@ -425,7 +466,7 @@ export class GameData {
 
           this.migrateStarterAbilities(systemData, this.starterData);
         } else {
-          if ([ "1.0.0", "1.0.1" ].includes(systemData.gameVersion)) {
+          if (["1.0.0", "1.0.1"].includes(systemData.gameVersion)) {
             this.migrateStarterAbilities(systemData);
           }
           //this.fixVariantData(systemData);
@@ -522,7 +563,7 @@ export class GameData {
         return ret;
       }
 
-      return k.endsWith("Attr") && ![ "natureAttr", "abilityAttr", "passiveAttr" ].includes(k) ? BigInt(v) : v;
+      return k.endsWith("Attr") && !["natureAttr", "abilityAttr", "passiveAttr"].includes(k) ? BigInt(v) : v;
     }) as SystemSaveData;
   }
 
@@ -655,7 +696,7 @@ export class GameData {
    * to update the specified setting with the new value. Finally, it saves the updated settings back
    * to localStorage and returns `true` to indicate success.
    */
-  public saveControlSetting(device: Device, localStoragePropertyName: string, setting: SettingGamepad|SettingKeyboard, settingDefaults, valueIndex: integer): boolean {
+  public saveControlSetting(device: Device, localStoragePropertyName: string, setting: SettingGamepad | SettingKeyboard, settingDefaults, valueIndex: integer): boolean {
     let settingsControls: object = {};  // Initialize an empty object to hold the gamepad settings
 
     if (localStorage.hasOwnProperty(localStoragePropertyName)) {  // Check if 'settingsControls' exists in localStorage
@@ -1176,7 +1217,7 @@ export class GameData {
           break;
         }
         const encryptedData = AES.encrypt(dataStr, saveKey);
-        const blob = new Blob([ encryptedData.toString() ], {type: "text/json"});
+        const blob = new Blob([encryptedData.toString()], { type: "text/json" });
         const link = document.createElement("a");
         link.href = window.URL.createObjectURL(blob);
         link.download = `${dataKey}.prsv`;
@@ -1299,7 +1340,7 @@ export class GameData {
 
     for (const species of allSpecies) {
       data[species.speciesId] = {
-        seenAttr: 0n, caughtAttr: 0n, natureAttr: 0, seenCount: 0, caughtCount: 0, hatchedCount: 0, ivs: [ 0, 0, 0, 0, 0, 0 ]
+        seenAttr: 0n, caughtAttr: 0n, natureAttr: 0, seenCount: 0, caughtCount: 0, hatchedCount: 0, ivs: [0, 0, 0, 0, 0, 0]
       };
     }
 
@@ -1308,7 +1349,7 @@ export class GameData {
     const defaultStarterNatures: Nature[] = [];
 
     this.scene.executeWithSeedOffset(() => {
-      const neutralNatures = [ Nature.HARDY, Nature.DOCILE, Nature.SERIOUS, Nature.BASHFUL, Nature.QUIRKY ];
+      const neutralNatures = [Nature.HARDY, Nature.DOCILE, Nature.SERIOUS, Nature.BASHFUL, Nature.QUIRKY];
       for (let s = 0; s < defaultStarterSpecies.length; s++) {
         defaultStarterNatures.push(Utils.randSeedItem(neutralNatures));
       }

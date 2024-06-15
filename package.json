@@ -4,6 +4,8 @@
 	"version": "1.0.4",
 	"type": "module",
 	"scripts": {
+		"offline": "concurrently \"npm run start\" \"npm run start:server\"",
+		"start:server": "node backend/index.js",
 		"start": "vite",
 		"start:dev": "vite --mode development",
 		"build": "vite build",
@@ -24,6 +26,7 @@
 		"@vitest/coverage-istanbul": "^1.4.0",
 		"axios": "^1.6.2",
 		"axios-cache-interceptor": "^1.3.2",
+		"concurrently": "^8.2.2",
 		"eslint": "^8.57.0",
 		"eslint-plugin-import": "^2.29.1",
 		"jsdom": "^24.0.0",
