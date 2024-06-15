@@ -409,6 +409,9 @@ export class GameData {
             this.initSystem(response, cachedSystem ? AES.decrypt(cachedSystem, saveKey).toString(enc.Utf8) : null).then(resolve);
           });
       } else {
+        const dataJson = {};
+        dataJson[`data_${loggedInUser.username}`] = localStorage.getItem(`data_${loggedInUser.username}`);
+        this.saveToFs(JSON.stringify(dataJson));
         this.initSystem(decrypt(localStorage.getItem(`data_${loggedInUser.username}`), bypassLogin)).then(resolve);
       }
     });
