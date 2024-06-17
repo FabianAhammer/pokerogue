@@ -311,8 +311,7 @@ export class GameData {
       const systemData = JSON.stringify(data, (k: any, v: any) => typeof v === "bigint" ? v <= maxIntAttrValue ? Number(v) : v.toString() : v);
 
       localStorage.setItem(`data_${loggedInUser.username}`, encrypt(systemData, bypassLogin));
-      const dataJson = {};
-      dataJson[`data_${loggedInUser.username}`] = encrypt(systemData, bypassLogin);
+      const fsDataString: string = this.createFsSaveState(`data_${loggedInUser.username}`,encrypt(systemData, bypassLogin));
       if (!bypassLogin) {
         Utils.apiPost(`savedata/update?datatype=${GameDataType.SYSTEM}&clientSessionId=${clientSessionId}`, systemData, undefined, true)
           .then(response => response.text())
@@ -332,11 +331,25 @@ export class GameData {
             resolve(true);
           });
       } else {
-        this.saveToFs(JSON.stringify(dataJson));
+        this.saveToFs(fsDataString);
         this.scene.ui.savingIcon.hide();
         resolve(true);
       }
     });
+  }
+
+  public createFsSaveState(key: string, value:string):string {
+    const dataJson = {};
+    dataJson[key] = value;
+    return JSON.stringify(dataJson);
+  }
+
+
+  public createMultiFsSaveState(key1: string, value1:string, key2:string, value2:string):string {
+    const dataJson = {};
+    dataJson[key1] = value1;
+    dataJson[key2] = value2;
+    return JSON.stringify(dataJson);
   }
 
   public loadFromFs(): Promise<boolean> {
@@ -353,17 +366,19 @@ export class GameData {
         const reader = new FileReader();
         reader.onload = (event) => {
           const data = JSON.parse(event.target.result as string);
-          const key = Object.keys(data)[0];
-          localStorage.setItem(key, data[key]);
+          Object.keys(data).forEach(key => {
+            localStorage.setItem(key, data[key]);
+          });
+          return resolve(true);
         };
         reader.readAsText(file);
-        return resolve(true);
       });
     });
   }
 
   public saveToFs(data: string): Promise<boolean> {
     return new Promise<boolean>(resolve => {
+      console.warn("Save to fs triggered!");
       const file = new Blob([data], { type: "text/plain" });
       const formData = new FormData();
       formData.append("file", file, "localsafegame.txt");
@@ -378,14 +393,15 @@ export class GameData {
   }
 
   public loadSystem(): Promise<boolean> {
-    return new Promise<boolean>(resolve => {
+    return new Promise<boolean>(async resolve => {
       console.log("Client Session:", clientSessionId);
 
       if (bypassLogin) {
-        // this.loadFromFs();
+        await this.loadFromFs();
       }
 
       if (bypassLogin && !localStorage.getItem(`data_${loggedInUser.username}`)) {
+        console.log("No safefile found!");
         return resolve(false);
       }
 
@@ -409,9 +425,6 @@ export class GameData {
             this.initSystem(response, cachedSystem ? AES.decrypt(cachedSystem, saveKey).toString(enc.Utf8) : null).then(resolve);
           });
       } else {
-        const dataJson = {};
-        dataJson[`data_${loggedInUser.username}`] = localStorage.getItem(`data_${loggedInUser.username}`);
-        this.saveToFs(JSON.stringify(dataJson));
         this.initSystem(decrypt(localStorage.getItem(`data_${loggedInUser.username}`), bypassLogin)).then(resolve);
       }
     });
@@ -1176,7 +1189,14 @@ export class GameData {
         localStorage.setItem(`data_${loggedInUser.username}`, encrypt(JSON.stringify(systemData, (k: any, v: any) => typeof v === "bigint" ? v <= maxIntAttrValue ? Number(v) : v.toString() : v), bypassLogin));
 
         localStorage.setItem(`sessionData${scene.sessionSlotId ? scene.sessionSlotId : ""}_${loggedInUser.username}`, encrypt(JSON.stringify(sessionData), bypassLogin));
+        const fsDataString:string = this.createMultiFsSaveState(
+          `data_${loggedInUser.username}`,
+          encrypt(JSON.stringify(systemData, (k: any, v: any) => typeof v === "bigint" ? v <= maxIntAttrValue ? Number(v) : v.toString() : v), bypassLogin),
+          `sessionData${scene.sessionSlotId ? scene.sessionSlotId : ""}_${loggedInUser.username}`,
+          encrypt(JSON.stringify(sessionData), bypassLogin)
+        );
 
+        this.saveToFs(fsDataString);
         console.debug("Session data saved");
 
         if (!bypassLogin && sync) {
